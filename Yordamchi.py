@@ -3,6 +3,8 @@ from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.enums import ChatAction
 import asyncio
+import aiohttp
+import io
 
 # Token va admin ID
 TOKEN = "7921959076:AAEC5UCgFyCQMoP0WG1X_I-n1LHpxFzdWYE"
@@ -57,12 +59,28 @@ async def documents_handler(message: types.Message):
     text += "\nKerakli hujjat nomini yozing, sizga havola yuboraman."
     await message.answer(text)
 
-# Hujjat so‘ralganda havola yuborish
+# Hujjat so‘ralganda havoladan faylni yuklab olib yuborish
 @dp.message(F.text.in_(documents.keys()))
 async def send_document(message: types.Message):
-    await bot.send_chat_action(message.chat.id, action=ChatAction.TYPING)
     doc_url = documents[message.text]
-    await message.answer_document(types.FSInputFile.from_url(doc_url), caption=message.text)
+    await bot.send_chat_action(message.chat.id, action=ChatAction.UPLOAD_DOCUMENT)
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(doc_url) as resp:
+                if resp.status == 200:
+                    data = await resp.read()
+                    file_like = io.BytesIO(data)
+                    # Fayl nomini kengaytmasi bilan berish
+                    filename = message.text.replace(" ", "_") + ".docx"
+                    file_like.name = filename
+                    await message.answer_document(document=file_like, caption=message.text)
+                else:
+                    await message.answer("Kechirasiz, hujjat yuklab olinmadi. Iltimos, keyinroq qayta urinib ko‘ring.")
+    except Exception as e:
+        await message.answer("Xatolik yuz berdi, iltimos keyinroq urinib ko‘ring.")
+        # Xatolikni adminga xabar qilish uchun kod yozishingiz mumkin
+        print(f"Document sending error: {e}")
 
 # "💼 Xizmatlar" tugmasi uchun handler
 @dp.message(F.text == "💼 Xizmatlar")
